@@ -18,7 +18,7 @@ class Launcher(CTk):
 
     def _setup_window(self):
         self.title("Agar.io Color Edition")
-        self.geometry("500x700")
+        self.geometry("500x600")
         self.configure(fg_color="#1e1e2e")
 
     def _setup_ui(self):
@@ -72,7 +72,7 @@ class Launcher(CTk):
             fg_color="#ff4444",
             hover_color="#ff6666",
             text_color="white",
-            border_width=2
+            border_width=2, command=self.login
         )
         self.btn_login.pack(padx=40, pady=(30, 20), fill="x")
 
@@ -153,8 +153,5 @@ class Launcher(CTk):
         self.host = self.entry_ip.get()
         self.port = int(self.entry_port.get())
 
-        self.destroy
+        self.destroy()
 
-if __name__ == "__main__":
-    app = Launcher()
-    app.mainloop()

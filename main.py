@@ -1,139 +1,120 @@
-from pygame import *
-from random import randint
 from math import hypot
 from socket import socket, AF_INET, SOCK_STREAM
+from pygame import *
 from threading import Thread
+from random import randint
 from launcher import Launcher
 
-app = Launcher()
-host = app.host
-nickname = app.username
-port = app.port
-print(host,port,nickname)
 
-sock = socket(AF_INET,SOCK_STREAM)
-sock.connect(('localhost',8080))
+win = Launcher()
+win.mainloop()
+
+name = win.username
+port = win.port
+host = win.host
+sock = socket(AF_INET, SOCK_STREAM)
+sock.connect((host, port))
+my_data = list(map(int, sock.recv(64).decode().strip('|').split(',')))
+my_id = my_data[0]
+my_player = my_data[1:]
 sock.setblocking(False)
 
-
-
-
 init()
-
-WINDOW_SIZE = 800, 600
-FPS = 60
-
+window = display.set_mode((1000, 1000))
+clock = time.Clock()
+f = font.Font(None, 50)
+all_players = []
 running = True
 lose = False
 
-screen = display.set_mode(WINDOW_SIZE)
-display.set_caption("AGAR.IO")
 
-clk = time.Clock()
+def receive_data():
+   global all_players, running, lose
+   while running:
+       try:
+           data = sock.recv(4096).decode().strip()
+           if data == "LOSE":
+               lose = True
+           elif data:
+               parts = data.strip('|').split('|')
 
-class Player:
-    def __init__(self,x,y,r,name,color=(255,0,0)):
-        self.x = x
-        self.y = y
-        self.r = r
-        self.name = name
-        self.color = color
+               all_players = [list(map(int, p.split(',')[:4])) + [p.split(',')[4]] for p in parts if
+                              len(p.split(',')) == 5]
 
-    def move (self):
-        keys = key.get_pressed()
-        if keys[K_w]:
-            self.y -= 5
-        if keys[K_s]:
-            self.y += 5 
-        if keys[K_a]:
-            self.x -= 5
-        if keys[K_d]:
-            self.x += 5
-
-    def draw(self, scale):
-        draw.circle(screen, self.color, (400,300), self.r*scale)
+               print(all_players)
+       except:
+           pass
 
 
-class Food:
-    def __init__(self):
-        self.x = randint(-2000,2000)
-        self.y = randint(-2000,2000)
-        self.r = 10
-        self.color = (randint(10,255),randint(10,255),randint(10,255))
-
-    def check_collission(self,player):
-        dx = self.x - player.x
-        dy = self.y - player.y
-        return hypot(dx,dy) < self.r + player.r
-    
-    def draw(self,sx,sy):
-        draw.circle(screen, self.color, (sx,sy), self.r)
+Thread(target=receive_data, daemon=True).start()
 
 
+class Eat:
+   def __init__(self, x, y, r, c):
+       self.x = x
+       self.y = y
+       self.radius = r
+       self.color = c
 
-my_data = list(map(int, sock.recv(64).decode().strip().split(",")))
-my_id = my_data[0]
-my_Player = Player(0,0,30,"Player")
-
-all_players = []
-foods = [Food() for _ in range(300)]
+   def check_collision(self, player_x, player_y, player_r):
+       dx = self.x - player_x
+       dy = self.y - player_y
+       return hypot(dx, dy) <= self.radius + player_r
 
 
-
-def recive_data():
-    global all_players, running, lose
-    while running:
-        try:
-            data = sock.recv(4096).decode().strip()
-            if data == "LOSE":
-                lose = True
-            elif data:
-                parts = data.strip('|').split('|')
-                all_players = [list(map(int, p.split(",")))for p in parts if len(p.split(',')) == 4]
-
-        except:
-            pass
-
-Thread(target=recive_data, daemon=True).start()
+eats = [Eat(randint(-2000, 2000), randint(-2000, 2000), 10,
+           (randint(0, 255), randint(0, 255), randint(0, 255)))
+       for _ in range(300)]
+name_font = font.Font(None, 20)
 while running:
-    for e in event.get():
-        if e.type == QUIT:
-            running = False
-    screen.fill((255,255,255))
+   for e in event.get():
+       if e.type == QUIT:
+           running = False
 
-    scale = max(0.3, min(50, my_Player.r / 50))
-    my_Player.move()
-    my_Player.draw(scale)
+   window.fill((255, 255, 255))
+   scale = max(0.3, min(50 / my_player[2], 1.5))
 
-    for p in all_players:
-        if p[0] == my_id: continue
-        sx = int((p[1] - my_Player.x) * scale +WINDOW_SIZE[0] // 2)
-        sy = int((p[2] - my_Player.y) * scale +WINDOW_SIZE[1] // 2)
-        draw.circle(screen, (2,255,0),(sx,sy),int(p[3] * scale))
+   for p in all_players:
+       if p[0] == my_id: continue
+       sx = int((p[1] - my_player[0]) * scale + 500)
+       sy = int((p[2] - my_player[1]) * scale + 500)
+       draw.circle(window, (255, 0, 0), (sx, sy), int(p[3] * scale))
+       name_text = name_font.render(f'{p[4]}', 1, (0, 0, 0))
+       window.blit(name_text, (sx, sy))
 
-    to_remove = []
-    for f in foods:
-        if f.check_collission(my_Player):
-            my_Player.r += int(f.r * 0.2)
-            to_remove.append(f)
-        else:
-            sx = int((f.x - my_Player.x) * scale + 400)
-            sy = int((f.y - my_Player.y) * scale + 300)
-            f.draw(sx,sy)
+   draw.circle(window, (0, 255, 0), (500, 500), int(my_player[2] * scale))
 
-    for f in to_remove: foods.remove(f)
+   to_remove = []
+   for eat in eats:
+       if eat.check_collision(my_player[0], my_player[1], my_player[2]):
+           to_remove.append(eat)
+           my_player[2] += int(eat.radius * 0.2)
+       else:
+           sx = int((eat.x - my_player[0]) * scale + 500)
+           sy = int((eat.y - my_player[1]) * scale + 500)
+           draw.circle(window, eat.color, (sx, sy), int(eat.radius * scale))
 
+   for eat in to_remove:
+       eats.remove(eat)
 
-    if lose:
-        main_font = font.SysFont("Arial", 50)
-        t = main_font.render("You lose!", 1, (244,0,0))
+   if lose:
+       t = f.render('U lose!', 1, (244, 0, 0))
+       window.blit(t, (400, 500))
 
+   display.update()
+   clock.tick(60)
 
-    display.update()
-    clk.tick(FPS)
+   if not lose:
+       keys = key.get_pressed()
+       if keys[K_w]: my_player[1] -= 15
+       if keys[K_s]: my_player[1] += 15
+       if keys[K_a]: my_player[0] -= 15
+       if keys[K_d]: my_player[0] += 15
 
-    try:
-        msg = f"{my_id}, {my_Player.x}, {my_Player.y}, {my_Player.r}"
-        sock.send(msg.encode())
-    except:
-        pass
+       try:
+           msg = f"{my_id},{my_player[0]},{my_player[1]},{my_player[2]},{name}"
+           sock.send(msg.encode())
+       except:
+           pass
+
+quit()
